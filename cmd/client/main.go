@@ -1,0 +1,100 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/YaroslavGaponov/grotto/pkg/client"
+)
+
+func main() {
+	flag.Parse()
+	args := flag.Args()
+	if len(args) == 0 {
+		help()
+		return
+	}
+	switch args[0] {
+	case "upload":
+		if len(args) != 3 {
+			help()
+			return
+		}
+		upload(args[1], args[2])
+	case "download":
+		if len(args) != 3 {
+			help()
+			return
+		}
+		download(args[1], args[2])
+	case "catalog":
+		if len(args) != 2 {
+			help()
+			return
+		}
+		catalog(args[1])
+	case "help":
+	default:
+		help()
+	}
+
+}
+
+func help() {
+	fmt.Println("Usage:")
+	fmt.Println("\tclient [command] args...")
+	fmt.Println()
+	fmt.Println("Available Commands:")
+	fmt.Println("\thelp                   Print help")
+	fmt.Println("\tupload {file} {url}    Upload local file to grotto")
+	fmt.Println("\tdownload {file} {url}  Download file from grotto")
+	fmt.Println("\tcatalog {url}          Print catalog")
+}
+
+func upload(file, url string) {
+	fmt.Println("uploading ", file)
+	data, err := os.ReadFile(file)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	name := filepath.Base(file)
+	c := client.NewClient(url)
+	err = c.Save(name, data)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("done")
+}
+
+func download(file, url string) {
+	fmt.Println("downloading ", file)
+	name := filepath.Base(file)
+	c := client.NewClient(url)
+	data, err := c.Load(name)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = os.WriteFile(file, data, 0644)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("done")
+}
+
+func catalog(url string) {
+	c := client.NewClient(url)
+	list, err := c.List()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for _, name := range list {
+		fmt.Println(name)
+	}
+}

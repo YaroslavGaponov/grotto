@@ -1,0 +1,11 @@
+FROM golang:1.20-alpine AS builder
+WORKDIR /grotto
+COPY . .
+RUN go mod download
+RUN go build -o master cmd/master/main.go
+
+FROM alpine:latest
+WORKDIR /grotto
+COPY --from=builder /grotto/master .
+EXPOSE 8000
+CMD ["./master"]
