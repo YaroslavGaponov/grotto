@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/YaroslavGaponov/grotto/pkg/client"
 	"github.com/YaroslavGaponov/grotto/pkg/common"
@@ -108,12 +110,22 @@ func catalog(url string) {
 }
 
 func watch(url string) {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	c := client.NewClient(url)
 	channel := make(chan common.Event)
+
 	fmt.Println("Waiting for events...")
 	go c.Watch(channel)
 	for {
-		event := <-channel
-		fmt.Println(event.Action, event.File)
+		select {
+		case <-sigs:
+			fmt.Println("bye")
+			close(channel)
+			return
+		case event := <-channel:
+			fmt.Println(event.Action, event.File)
+		}
 	}
 }
