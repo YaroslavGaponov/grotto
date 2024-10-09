@@ -3,10 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/YaroslavGaponov/grotto/pkg/client"
+	"github.com/gorilla/websocket"
 )
 
 func main() {
@@ -35,6 +38,12 @@ func main() {
 			return
 		}
 		catalog(args[1])
+	case "watch":
+		if len(args) != 2 {
+			help()
+			return
+		}
+		watch(args[1])
 	case "help":
 	default:
 		help()
@@ -51,6 +60,7 @@ func help() {
 	fmt.Println("\tupload {file} {url}    Upload local file to grotto")
 	fmt.Println("\tdownload {file} {url}  Download file from grotto")
 	fmt.Println("\tcatalog {url}          Print catalog")
+	fmt.Println("\twatch {url}            Print all events")
 }
 
 func upload(file, url string) {
@@ -96,5 +106,25 @@ func catalog(url string) {
 	}
 	for _, name := range list {
 		fmt.Println(name)
+	}
+}
+
+func watch(host string) {
+	u := url.URL{Scheme: "ws", Host: strings.TrimPrefix(host, "http://"), Path: "/events"}
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		fmt.Println("dial:", err)
+		return
+	}
+	defer c.Close()
+
+	fmt.Println("Waiting for events...")
+	for {
+		_, message, err := c.ReadMessage()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println(string(message))
 	}
 }

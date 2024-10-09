@@ -8,15 +8,27 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 const (
 	CHUNK_SIZE   = 8 * 1024
 	METADATA_TAG = ".metadata"
+
+	ACTION_ADD    = "ADD"
+	ACTION_REMOVE = "REMOVE"
 )
+
+type EventData struct {
+	Action string `json:"action"`
+	File   string `json:"file"`
+}
 
 type MasterController struct {
 	chunkServiceClients []ChunkServiceClient
+	channels            map[string]chan EventData
+	upgrader            websocket.Upgrader
 }
 
 func NewMasterController(chunkServiceUrls []string) MasterController {
@@ -24,8 +36,12 @@ func NewMasterController(chunkServiceUrls []string) MasterController {
 	for idx, url := range chunkServiceUrls {
 		chunkServiceClients[idx] = NewChunkServiceClient(url)
 	}
+	upgrader := websocket.Upgrader{}
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	return MasterController{
 		chunkServiceClients: chunkServiceClients,
+		channels:            make(map[string]chan EventData),
+		upgrader:            upgrader,
 	}
 }
 
@@ -78,6 +94,10 @@ func (masterController *MasterController) Save(w http.ResponseWriter, r *http.Re
 			http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
 			return
 		}
+	}
+
+	for _, channel := range masterController.channels {
+		channel <- EventData{File: name, Action: ACTION_ADD}
 	}
 }
 
@@ -180,4 +200,28 @@ func (masterController *MasterController) Remove(w http.ResponseWriter, r *http.
 		}
 	}
 
+	for _, channel := range masterController.channels {
+		channel <- EventData{File: name, Action: ACTION_REMOVE}
+	}
+}
+
+func (masterController *MasterController) Events(w http.ResponseWriter, r *http.Request) {
+	c, err := masterController.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		http.Error(w, "Upgrade error", http.StatusInternalServerError)
+		return
+	}
+	defer c.Close()
+
+	id := uuid.New()
+	channel := make(chan EventData)
+	masterController.channels[id.String()] = channel
+	defer delete(masterController.channels, id.String())
+
+	for {
+		event := <-channel
+		if data, err := json.Marshal(event); err == nil {
+			c.WriteMessage(websocket.TextMessage, data)
+		}
+	}
 }

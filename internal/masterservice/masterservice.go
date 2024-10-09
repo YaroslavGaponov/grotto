@@ -7,26 +7,30 @@ import (
 )
 
 const (
-	FILES_BASE_URL = "/v1/files"
-	FILE_BASE_URL = "/v1/file"
+	FILES_BASE_URL  = "/v1/files"
+	FILE_BASE_URL   = "/v1/file"
+	EVENTS_BASE_URL = "/events"
 )
 
 type MasterService struct {
-	addr string
-	router *chi.Mux
+	addr             string
+	router           *chi.Mux
 	masterController MasterController
 }
 
 func New(addr string, chunkServiceUrls []string) MasterService {
-	masterService := MasterService{ 
-		addr: addr,
-		router: chi.NewRouter(),
+	masterService := MasterService{
+		addr:             addr,
+		router:           chi.NewRouter(),
 		masterController: NewMasterController(chunkServiceUrls),
 	}
 	masterService.router.Post(FILE_BASE_URL+"/{name}", masterService.masterController.Save)
 	masterService.router.Get(FILE_BASE_URL+"/{name}", masterService.masterController.Load)
 	masterService.router.Delete(FILE_BASE_URL+"/{name}", masterService.masterController.Remove)
 	masterService.router.Get(FILES_BASE_URL+"/all", masterService.masterController.List)
+
+	masterService.router.Get(EVENTS_BASE_URL, masterService.masterController.Events)
+
 	return masterService
 }
 
