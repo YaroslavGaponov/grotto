@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/YaroslavGaponov/grotto/pkg/common"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -15,19 +16,12 @@ import (
 const (
 	CHUNK_SIZE   = 8 * 1024
 	METADATA_TAG = ".metadata"
-
-	ACTION_ADD    = "ADD"
-	ACTION_REMOVE = "REMOVE"
 )
 
-type EventData struct {
-	Action string `json:"action"`
-	File   string `json:"file"`
-}
 
 type MasterController struct {
 	chunkServiceClients []ChunkServiceClient
-	channels            map[string]chan EventData
+	channels            map[string]chan common.Event
 	upgrader            websocket.Upgrader
 }
 
@@ -40,7 +34,7 @@ func NewMasterController(chunkServiceUrls []string) MasterController {
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	return MasterController{
 		chunkServiceClients: chunkServiceClients,
-		channels:            make(map[string]chan EventData),
+		channels:            make(map[string]chan common.Event),
 		upgrader:            upgrader,
 	}
 }
@@ -97,7 +91,7 @@ func (masterController *MasterController) Save(w http.ResponseWriter, r *http.Re
 	}
 
 	for _, channel := range masterController.channels {
-		channel <- EventData{File: name, Action: ACTION_ADD}
+		channel <- common.Event{File: name, Action: common.ACTION_ADD}
 	}
 }
 
@@ -201,7 +195,7 @@ func (masterController *MasterController) Remove(w http.ResponseWriter, r *http.
 	}
 
 	for _, channel := range masterController.channels {
-		channel <- EventData{File: name, Action: ACTION_REMOVE}
+		channel <- common.Event{File: name, Action:common.ACTION_REMOVE}
 	}
 }
 
@@ -214,7 +208,7 @@ func (masterController *MasterController) Events(w http.ResponseWriter, r *http.
 	defer c.Close()
 
 	id := uuid.New()
-	channel := make(chan EventData)
+	channel := make(chan common.Event)
 	masterController.channels[id.String()] = channel
 	defer delete(masterController.channels, id.String())
 

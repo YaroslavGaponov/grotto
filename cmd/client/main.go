@@ -3,13 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/YaroslavGaponov/grotto/pkg/client"
-	"github.com/gorilla/websocket"
+	"github.com/YaroslavGaponov/grotto/pkg/common"
 )
 
 func main() {
@@ -109,22 +107,13 @@ func catalog(url string) {
 	}
 }
 
-func watch(host string) {
-	u := url.URL{Scheme: "ws", Host: strings.TrimPrefix(host, "http://"), Path: "/events"}
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		fmt.Println("dial:", err)
-		return
-	}
-	defer c.Close()
-
+func watch(url string) {
+	c := client.NewClient(url)
+	channel := make(chan common.Event)
 	fmt.Println("Waiting for events...")
+	go c.Watch(channel)
 	for {
-		_, message, err := c.ReadMessage()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println(string(message))
+		event := <-channel
+		fmt.Println(event.Action, event.File)
 	}
 }

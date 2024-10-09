@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/YaroslavGaponov/grotto/pkg/common"
+	"github.com/gorilla/websocket"
 )
 
 type Client struct {
@@ -69,4 +74,28 @@ func (client *Client) Remove(name string) error {
 		return err
 	}
 	return nil
+}
+
+func (client *Client) Watch(channel chan common.Event) {
+	u := url.URL{Scheme: "ws", Host: strings.TrimPrefix(client.Url, "http://"), Path: "/events"}
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		fmt.Println("dial:", err)
+		return
+	}
+	defer c.Close()
+
+	for {
+		_, message, err := c.ReadMessage()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		var event common.Event
+		if err := json.Unmarshal(message, &event); err != nil {
+			fmt.Println(err)
+			return
+		}
+		channel <- event
+	}
 }
