@@ -18,7 +18,7 @@ func main() {
 	config := configure.NewConfigure()
 
 	fmt.Println("chunk service is starting...")
-	chunk := chunkservice.New(config.ChunkServiceAddr)
+	chunk := chunkservice.New(config)
 	go chunk.Start()
 
 	<-sigs

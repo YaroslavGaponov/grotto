@@ -3,6 +3,7 @@ package chunkservice
 import (
 	"net/http"
 
+	"github.com/YaroslavGaponov/grotto/internal/configure"
 	"github.com/go-chi/chi"
 )
 
@@ -17,11 +18,11 @@ type ChunkService struct {
 	chunk  ChunkController
 }
 
-func New(addr string) ChunkService {
+func New(conf configure.Configure) ChunkService {
 	chunkService := ChunkService{
-		addr:   addr,
+		addr:   conf.ChunkServiceAddr,
 		router: chi.NewRouter(),
-		chunk:  NewChunkController(),
+		chunk:  NewChunkController(conf),
 	}
 	chunkService.router.Get(CHUNKS_BASE_URL+"/all", chunkService.chunk.List)
 	chunkService.router.Get(CHUNK_BASE_URL+"/{name}/{id}", chunkService.chunk.Load)

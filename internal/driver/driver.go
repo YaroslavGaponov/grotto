@@ -1,5 +1,11 @@
 package driver
 
+import "errors"
+
+var (
+	errNotFound = errors.New("file chunk is not found")
+)
+
 type ChunkId struct {
 	Name string `json:"name"`
 	Id   int    `json:"id"`

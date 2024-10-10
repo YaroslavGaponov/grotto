@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/YaroslavGaponov/grotto/internal/configure"
 	"github.com/YaroslavGaponov/grotto/internal/driver"
 	"github.com/go-chi/chi"
 )
@@ -14,9 +15,17 @@ type ChunkController struct {
 	store driver.Driver
 }
 
-func NewChunkController() ChunkController {
+func NewChunkController(conf configure.Configure) ChunkController {
+	var store driver.Driver
+
+	switch conf.DriverType {
+	case "disk":
+		store = driver.NewDiskDriver(conf.DiskDriverRootDir)
+	case "memory":
+		store = driver.NewMemoryDriver()
+	}
 	return ChunkController{
-		store: driver.NewMemoryDriver(),
+		store: store,
 	}
 }
 
