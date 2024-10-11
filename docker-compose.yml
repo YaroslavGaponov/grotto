@@ -1,3 +1,5 @@
+version: '3'
+
 services:
 
   master:
@@ -13,33 +15,58 @@ services:
     build:
       context: .
       dockerfile: dockerfile.chunk
+    environment:
+      - DRIVER_TYPE=disk
+      - DRIVER_DISK_ROOT=/var/data
     ports:
       - 8001:8001
+    volumes:
+      - ./data/chunk1:/var/data
 
   chunk2:
     build:
       context: .
       dockerfile: dockerfile.chunk
+    environment:
+      - DRIVER_TYPE=disk
+      - DRIVER_DISK_ROOT=/var/data
     ports:
       - 8002:8001
+    volumes:
+      - ./data/chunk2:/var/data
 
   chunk3:
     build:
       context: .
       dockerfile: dockerfile.chunk
+    environment:
+      - DRIVER_TYPE=disk
+      - DRIVER_DISK_ROOT=/var/data
     ports:
       - 8003:8001
+    volumes:
+      - ./data/chunk3:/var/data
 
   chunk4:
     build:
       context: .
       dockerfile: dockerfile.chunk
+    environment:
+    - DRIVER_TYPE=disk
+    - DRIVER_DISK_ROOT=/var/data
     ports:
       - 8004:8001
+    volumes:
+      - ./data/chunk4:/var/data
 
   chunk5:
     build:
       context: .
       dockerfile: dockerfile.chunk
+    environment:
+      - DRIVER_TYPE=disk
+      - DRIVER_DISK_ROOT=/var/data
     ports:
       - 8005:8001
+    volumes:
+      - ./data/chunk5:/var/data

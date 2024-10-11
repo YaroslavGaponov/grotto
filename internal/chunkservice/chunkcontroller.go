@@ -23,6 +23,8 @@ func NewChunkController(conf configure.Configure) ChunkController {
 		store = driver.NewDiskDriver(conf.DiskDriverRootDir)
 	case "memory":
 		store = driver.NewMemoryDriver()
+	default:
+		store = driver.NewMemoryDriver()
 	}
 	return ChunkController{
 		store: store,

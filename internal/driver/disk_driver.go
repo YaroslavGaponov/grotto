@@ -38,8 +38,20 @@ func (driver *DiskDriver) Load(chunkId ChunkId) ([]byte, error) {
 }
 
 func (driver *DiskDriver) Remove(chunkId ChunkId) error {
-	name := fmt.Sprintf("%s/%s/%d", driver.root, chunkId.Name, chunkId.Id)
-	return os.Remove(name)
+	dir := fmt.Sprintf("%s/%s", driver.root, chunkId.Name)
+	name := fmt.Sprintf("%s/%d", dir, chunkId.Id)
+
+	if err := os.Remove(name); err != nil {
+		return err
+	}
+	list, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		return os.Remove(dir)
+	}
+	return nil
 }
 
 func (driver *DiskDriver) List() ([]ChunkId, error) {
@@ -67,7 +79,7 @@ func (driver *DiskDriver) List() ([]ChunkId, error) {
 func createDir(name string) error {
 	_, err := os.Stat(name)
 	if os.IsNotExist(err) {
-		if err := os.Chdir(name); err != nil {
+		if err := os.Mkdir(name, 0644); err != nil {
 			return err
 		}
 	}
