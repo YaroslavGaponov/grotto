@@ -6,6 +6,7 @@ import (
 )
 
 type Configure struct {
+	LogLevel          string
 	ChunkServiceAddr  string
 	MasterServiceAddr string
 	ChunkServiceUrls  []string
@@ -15,6 +16,7 @@ type Configure struct {
 
 func NewConfigure() Configure {
 	return Configure{
+		LogLevel:          getEnvOrDefault("LOG_LEVEL", "all"),
 		ChunkServiceAddr:  getEnvOrDefault("CHUNK_SERVICE_ADDR", ":8001"),
 		MasterServiceAddr: getEnvOrDefault("MASTER_SERVICE_ADDR", ":8000"),
 		ChunkServiceUrls:  strings.Split(getEnvOrDefault("CHUNK_SERVICE_URLS", ""), ","),

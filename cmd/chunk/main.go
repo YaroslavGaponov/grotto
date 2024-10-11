@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/YaroslavGaponov/grotto/internal/chunkservice"
 	"github.com/YaroslavGaponov/grotto/internal/configure"
+	"github.com/YaroslavGaponov/grotto/pkg/logger"
 )
 
 func main() {
@@ -16,8 +16,9 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	config := configure.NewConfigure()
+	log := logger.NewLogger(config.LogLevel)
 
-	fmt.Println("chunk service is starting...")
+	log.Infof("chunk service is starting...")
 	chunk := chunkservice.New(config)
 	go chunk.Start()
 
