@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/YaroslavGaponov/grotto/internal/configure"
+	"github.com/YaroslavGaponov/grotto/pkg/logger"
 	"github.com/go-chi/chi"
 )
 
@@ -13,16 +14,18 @@ const (
 )
 
 type ChunkService struct {
+	log    logger.ILogger
 	addr   string
 	router *chi.Mux
 	chunk  ChunkController
 }
 
-func New(conf configure.Configure) ChunkService {
+func New(log logger.ILogger, conf configure.Configure) ChunkService {
 	chunkService := ChunkService{
+		log:    log,
 		addr:   conf.ChunkServiceAddr,
 		router: chi.NewRouter(),
-		chunk:  NewChunkController(conf),
+		chunk:  NewChunkController(log, conf),
 	}
 	chunkService.router.Get(CHUNKS_BASE_URL+"/all", chunkService.chunk.List)
 	chunkService.router.Get(CHUNK_BASE_URL+"/{name}/{id}", chunkService.chunk.Load)
@@ -32,8 +35,10 @@ func New(conf configure.Configure) ChunkService {
 }
 
 func (chunkService *ChunkService) Start() error {
+	chunkService.log.Infof("server is starting at %s", chunkService.addr)
 	return http.ListenAndServe(chunkService.addr, chunkService.router)
 }
 
 func (chunkService *ChunkService) Stop() {
+	chunkService.log.Infof("server is stopping")
 }

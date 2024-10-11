@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/YaroslavGaponov/grotto/pkg/common"
+	"github.com/YaroslavGaponov/grotto/pkg/logger"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -20,12 +21,13 @@ const (
 
 
 type MasterController struct {
+	log logger.ILogger
 	chunkServiceClients []ChunkServiceClient
 	channels            map[string]chan common.Event
 	upgrader            websocket.Upgrader
 }
 
-func NewMasterController(chunkServiceUrls []string) MasterController {
+func NewMasterController(log logger.ILogger,chunkServiceUrls []string) MasterController {
 	chunkServiceClients := make([]ChunkServiceClient, len(chunkServiceUrls))
 	for idx, url := range chunkServiceUrls {
 		chunkServiceClients[idx] = NewChunkServiceClient(url)
@@ -33,6 +35,7 @@ func NewMasterController(chunkServiceUrls []string) MasterController {
 	upgrader := websocket.Upgrader{}
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	return MasterController{
+		log: log,
 		chunkServiceClients: chunkServiceClients,
 		channels:            make(map[string]chan common.Event),
 		upgrader:            upgrader,

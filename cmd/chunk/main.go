@@ -19,7 +19,7 @@ func main() {
 	log := logger.NewLogger(config.LogLevel)
 
 	log.Infof("chunk service is starting...")
-	chunk := chunkservice.New(config)
+	chunk := chunkservice.New(log, config)
 	go chunk.Start()
 
 	<-sigs

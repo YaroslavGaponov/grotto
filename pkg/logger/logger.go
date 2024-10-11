@@ -14,11 +14,20 @@ const (
 	TRACE   = 1 << 5
 )
 
+type ILogger interface {
+	Infof(format string, v ...any)
+	Debugf(format string, v ...any)
+	Warnf(format string, v ...any)
+	Fatalf(format string, v ...any)
+	Tracef(format string, v ...any)
+	Errorf(format string, v ...any)
+}
+
 type Logger struct {
 	level int
 }
 
-func NewLogger(levelName string) Logger {
+func NewLogger(levelName string) ILogger {
 	level := INFO | WARNING | ERROR | FATAL
 	switch levelName {
 	case "silent":
@@ -32,7 +41,7 @@ func NewLogger(levelName string) Logger {
 	case "all":
 		level = INFO | WARNING | ERROR | FATAL | DEBUG | TRACE
 	}
-	return Logger{
+	return &Logger{
 		level: level,
 	}
 }

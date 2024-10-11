@@ -3,6 +3,7 @@ package masterservice
 import (
 	"net/http"
 
+	"github.com/YaroslavGaponov/grotto/pkg/logger"
 	"github.com/go-chi/chi"
 )
 
@@ -13,16 +14,18 @@ const (
 )
 
 type MasterService struct {
+	log              logger.ILogger
 	addr             string
 	router           *chi.Mux
 	masterController MasterController
 }
 
-func New(addr string, chunkServiceUrls []string) MasterService {
+func New(log logger.ILogger, addr string, chunkServiceUrls []string) MasterService {
 	masterService := MasterService{
+		log:              log,
 		addr:             addr,
 		router:           chi.NewRouter(),
-		masterController: NewMasterController(chunkServiceUrls),
+		masterController: NewMasterController(log, chunkServiceUrls),
 	}
 	masterService.router.Post(FILE_BASE_URL+"/{name}", masterService.masterController.Save)
 	masterService.router.Get(FILE_BASE_URL+"/{name}", masterService.masterController.Load)
@@ -35,6 +38,7 @@ func New(addr string, chunkServiceUrls []string) MasterService {
 }
 
 func (masterService *MasterService) Start() error {
+	masterService.log.Infof("server is starting at %s", masterService.addr)
 	return http.ListenAndServe(masterService.addr, masterService.router)
 }
 

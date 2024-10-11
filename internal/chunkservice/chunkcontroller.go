@@ -8,14 +8,16 @@ import (
 
 	"github.com/YaroslavGaponov/grotto/internal/configure"
 	"github.com/YaroslavGaponov/grotto/internal/driver"
+	"github.com/YaroslavGaponov/grotto/pkg/logger"
 	"github.com/go-chi/chi"
 )
 
 type ChunkController struct {
+	log logger.ILogger
 	store driver.Driver
 }
 
-func NewChunkController(conf configure.Configure) ChunkController {
+func NewChunkController(log logger.ILogger, conf configure.Configure) ChunkController {
 	var store driver.Driver
 
 	switch conf.DriverType {
@@ -27,6 +29,7 @@ func NewChunkController(conf configure.Configure) ChunkController {
 		store = driver.NewMemoryDriver()
 	}
 	return ChunkController{
+		log: log,
 		store: store,
 	}
 }
