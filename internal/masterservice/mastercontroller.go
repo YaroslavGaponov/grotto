@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/YaroslavGaponov/grotto/pkg/common"
 	"github.com/YaroslavGaponov/grotto/pkg/logger"
@@ -66,31 +67,38 @@ func (masterController *MasterController) Save(w http.ResponseWriter, r *http.Re
 			http.Error(w, "Error reading body", http.StatusInternalServerError)
 			return
 		}
-
+		wg := sync.WaitGroup{}
 		idx := rand.Intn(len(masterController.chunkServiceClients))
 		for replica := 0; replica < masterController.replicas; replica++ {
+			wg.Add(1)
 			client := masterController.chunkServiceClients[idx]
-			client.Save(name, id, buf[:n])
 			metadata.AddChunk(id, client.Url)
 			if idx >= len(masterController.chunkServiceClients)-1 {
 				idx = 0
 			} else {
 				idx++
 			}
+			go func(client ChunkServiceClient) {
+				defer wg.Done()
+				client.Save(name, id, buf[:n])
+			}(client)
 		}
+		wg.Wait()
 		id++
 	}
-	for _, client := range masterController.chunkServiceClients {
-		err := client.Save(name+METADATA_TAG, 0, metadata.ToByteArray())
-		if err != nil {
-			http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
-			return
+	go func() {
+		for _, client := range masterController.chunkServiceClients {
+			err := client.Save(name+METADATA_TAG, 0, metadata.ToByteArray())
+			if err != nil {
+				http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
+				return
+			}
 		}
-	}
 
-	for _, channel := range masterController.channels {
-		channel <- common.Event{File: name, Action: common.ACTION_ADD}
-	}
+		for _, channel := range masterController.channels {
+			channel <- common.Event{File: name, Action: common.ACTION_ADD}
+		}
+	}()
 }
 
 func (masterController *MasterController) Load(w http.ResponseWriter, r *http.Request) {
@@ -129,16 +137,26 @@ func (masterController *MasterController) Load(w http.ResponseWriter, r *http.Re
 
 func (masterController *MasterController) List(w http.ResponseWriter, r *http.Request) {
 	m := make(map[string]struct{})
+	wg := sync.WaitGroup{}
+	lock := sync.Mutex{}
 	for _, client := range masterController.chunkServiceClients {
-		res, err := client.List()
-		if err != nil {
-			http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
-			return
-		}
-		for _, r := range res {
-			m[r.Name] = struct{}{}
-		}
+		wg.Add(1)
+		go func(client ChunkServiceClient) {
+			res, err := client.List()
+			if err != nil {
+				http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
+				return
+			}
+			lock.Lock()
+			defer lock.Unlock()
+			for _, r := range res {
+				m[r.Name] = struct{}{}
+			}
+			wg.Done()
+		}(client)
 	}
+	wg.Wait()
+
 	var list []string
 	for name := range m {
 		if !strings.HasSuffix(name, METADATA_TAG) {
