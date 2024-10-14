@@ -3,6 +3,7 @@ package masterservice
 import (
 	"net/http"
 
+	"github.com/YaroslavGaponov/grotto/internal/configure"
 	"github.com/YaroslavGaponov/grotto/pkg/logger"
 	"github.com/go-chi/chi"
 )
@@ -20,12 +21,12 @@ type MasterService struct {
 	masterController MasterController
 }
 
-func New(log logger.ILogger, addr string, chunkServiceUrls []string) MasterService {
+func New(log logger.ILogger,  conf configure.Configure) MasterService {
 	masterService := MasterService{
 		log:              log,
-		addr:             addr,
+		addr:             conf.MasterServiceAddr,
 		router:           chi.NewRouter(),
-		masterController: NewMasterController(log, chunkServiceUrls),
+		masterController: NewMasterController(log, conf.ChunkServiceUrls, conf.ChunkReplicas),
 	}
 	masterService.router.Post(FILE_BASE_URL+"/{name}", masterService.masterController.Save)
 	masterService.router.Get(FILE_BASE_URL+"/{name}", masterService.masterController.Load)

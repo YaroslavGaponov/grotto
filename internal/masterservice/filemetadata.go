@@ -6,12 +6,12 @@ import (
 )
 
 type FileMetadata struct {
-	chunks map[int]string
+	chunks map[int][]string
 }
 
 func NewFileMetadata() FileMetadata {
 	return FileMetadata{
-		chunks: make(map[int]string),
+		chunks: make(map[int][]string),
 	}
 }
 
@@ -26,21 +26,31 @@ func (md *FileMetadata) Load(body []byte) {
 		if err != nil {
 			continue
 		}
-		md.chunks[id] = idurl[1]
+		if _, found := md.chunks[id]; found {
+			md.chunks[id] = append(md.chunks[id], idurl[1])
+		} else {
+			md.chunks[id] = []string{idurl[1]}
+		}
 	}
 }
 
 func (md *FileMetadata) AddChunk(id int, url string) {
-	md.chunks[id] = url
+	if _, found := md.chunks[id]; found {
+		md.chunks[id] = append(md.chunks[id], url)
+	} else {
+		md.chunks[id] = []string{url}
+	}
 }
 
 func (fileMetadata *FileMetadata) ToByteArray() []byte {
 	var sb strings.Builder
-	for id, url := range fileMetadata.chunks {
-		sb.WriteString(strconv.Itoa(id))
-		sb.WriteString("|")
-		sb.WriteString(url)
-		sb.WriteString("\n")
+	for id, urls := range fileMetadata.chunks {
+		for _, url := range urls {
+			sb.WriteString(strconv.Itoa(id))
+			sb.WriteString("|")
+			sb.WriteString(url)
+			sb.WriteString("\n")
+		}
 	}
 	return []byte(sb.String())
 }

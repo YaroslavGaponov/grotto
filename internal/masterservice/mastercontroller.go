@@ -19,15 +19,15 @@ const (
 	METADATA_TAG = ".metadata"
 )
 
-
 type MasterController struct {
-	log logger.ILogger
+	log                 logger.ILogger
 	chunkServiceClients []ChunkServiceClient
 	channels            map[string]chan common.Event
 	upgrader            websocket.Upgrader
+	replicas            int
 }
 
-func NewMasterController(log logger.ILogger,chunkServiceUrls []string) MasterController {
+func NewMasterController(log logger.ILogger, chunkServiceUrls []string, replicas int) MasterController {
 	chunkServiceClients := make([]ChunkServiceClient, len(chunkServiceUrls))
 	for idx, url := range chunkServiceUrls {
 		chunkServiceClients[idx] = NewChunkServiceClient(url)
@@ -35,10 +35,11 @@ func NewMasterController(log logger.ILogger,chunkServiceUrls []string) MasterCon
 	upgrader := websocket.Upgrader{}
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	return MasterController{
-		log: log,
+		log:                 log,
 		chunkServiceClients: chunkServiceClients,
 		channels:            make(map[string]chan common.Event),
 		upgrader:            upgrader,
+		replicas:            replicas,
 	}
 }
 
@@ -54,35 +55,29 @@ func (masterController *MasterController) Save(w http.ResponseWriter, r *http.Re
 	buf := make([]byte, CHUNK_SIZE)
 	id := 0
 	for {
-		idx := rand.Intn(len(masterController.chunkServiceClients))
-		client := masterController.chunkServiceClients[idx]
 
 		n, err := io.ReadFull(r.Body, buf)
-
-		if err == io.ErrUnexpectedEOF {
-			if err := client.Save(name, id, buf[:n]); err != nil {
-				http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
-				return
-			}
-			metadata.AddChunk(id, client.Url)
-			break
-		}
 
 		if err == io.EOF {
 			break
 		}
 
-		if err != nil {
+		if err != nil && err != io.ErrUnexpectedEOF {
 			http.Error(w, "Error reading body", http.StatusInternalServerError)
 			return
 		}
 
-		if err := client.Save(name, id, buf[:n]); err != nil {
-			http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
-			return
+		idx := rand.Intn(len(masterController.chunkServiceClients))
+		for replica := 0; replica < masterController.replicas; replica++ {
+			client := masterController.chunkServiceClients[idx]
+			client.Save(name, id, buf[:n])
+			metadata.AddChunk(id, client.Url)
+			if idx >= len(masterController.chunkServiceClients)-1 {
+				idx = 0
+			} else {
+				idx++
+			}
 		}
-		metadata.AddChunk(id, client.Url)
-
 		id++
 	}
 	for _, client := range masterController.chunkServiceClients {
@@ -117,11 +112,12 @@ func (masterController *MasterController) Load(w http.ResponseWriter, r *http.Re
 	metadata.Load(metadataBody)
 
 	for id := 0; ; id++ {
-		url, found := metadata.chunks[id]
+		urls, found := metadata.chunks[id]
 		if !found {
 			break
 		}
-		client := NewChunkServiceClient(url)
+		idx := rand.Intn(len(urls))
+		client := NewChunkServiceClient(urls[idx])
 		data, err := client.Load(name, id)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -177,15 +173,17 @@ func (masterController *MasterController) Remove(w http.ResponseWriter, r *http.
 	metadata.Load(metadataBody)
 
 	for id := 0; ; id++ {
-		url, found := metadata.chunks[id]
+		urls, found := metadata.chunks[id]
 		if !found {
 			break
 		}
-		client := NewChunkServiceClient(url)
-		err := client.Remove(name, id)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-			return
+		for _, url := range urls {
+			client := NewChunkServiceClient(url)
+			err := client.Remove(name, id)
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				return
+			}
 		}
 	}
 
@@ -198,7 +196,7 @@ func (masterController *MasterController) Remove(w http.ResponseWriter, r *http.
 	}
 
 	for _, channel := range masterController.channels {
-		channel <- common.Event{File: name, Action:common.ACTION_REMOVE}
+		channel <- common.Event{File: name, Action: common.ACTION_REMOVE}
 	}
 }
 

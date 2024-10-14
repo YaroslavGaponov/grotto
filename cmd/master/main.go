@@ -18,7 +18,7 @@ func main() {
 	log := logger.NewLogger(config.LogLevel) 
 
 	log.Infof("master service is starting...")
-	master := masterservice.New(log, config.MasterServiceAddr, config.ChunkServiceUrls)
+	master := masterservice.New(log, config)
 	go master.Start()
 
 	<-sigs
