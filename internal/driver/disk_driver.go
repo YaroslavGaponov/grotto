@@ -5,9 +5,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type DiskDriver struct {
+	mu   sync.RWMutex
 	root string
 }
 
@@ -18,6 +20,9 @@ func NewDiskDriver(root string) *DiskDriver {
 }
 
 func (driver *DiskDriver) Save(chunkId ChunkId, data []byte) error {
+	driver.mu.Lock()
+	defer driver.mu.Unlock()
+
 	if err := createDir(driver.root); err != nil {
 		return err
 	}
@@ -33,11 +38,17 @@ func (driver *DiskDriver) Save(chunkId ChunkId, data []byte) error {
 }
 
 func (driver *DiskDriver) Load(chunkId ChunkId) ([]byte, error) {
+	driver.mu.RLock()
+	defer driver.mu.RUnlock()
+
 	name := fmt.Sprintf("%s/%s/%d", driver.root, chunkId.Name, chunkId.Id)
 	return os.ReadFile(name)
 }
 
 func (driver *DiskDriver) Remove(chunkId ChunkId) error {
+	driver.mu.Lock()
+	defer driver.mu.Unlock()
+
 	dir := fmt.Sprintf("%s/%s", driver.root, chunkId.Name)
 	name := fmt.Sprintf("%s/%d", dir, chunkId.Id)
 
@@ -55,6 +66,9 @@ func (driver *DiskDriver) Remove(chunkId ChunkId) error {
 }
 
 func (driver *DiskDriver) List() ([]ChunkId, error) {
+	driver.mu.RLock()
+	defer driver.mu.RUnlock()
+
 	files, err := os.ReadDir(driver.root)
 	if err != nil {
 		return nil, err
