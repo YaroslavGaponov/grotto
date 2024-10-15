@@ -21,26 +21,24 @@ const (
 )
 
 type MasterController struct {
-	log                 logger.ILogger
-	chunkServiceClients []ChunkServiceClient
-	channels            map[string]chan common.Event
-	upgrader            websocket.Upgrader
-	replicas            int
+	log        logger.ILogger
+	clientPool ChunkServiceClientPool
+	channels   map[string]chan common.Event
+	upgrader   websocket.Upgrader
+	replicas   int
 }
 
 func NewMasterController(log logger.ILogger, chunkServiceUrls []string, replicas int) MasterController {
-	chunkServiceClients := make([]ChunkServiceClient, len(chunkServiceUrls))
-	for idx, url := range chunkServiceUrls {
-		chunkServiceClients[idx] = NewChunkServiceClient(url)
-	}
+
 	upgrader := websocket.Upgrader{}
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+
 	return MasterController{
-		log:                 log,
-		chunkServiceClients: chunkServiceClients,
-		channels:            make(map[string]chan common.Event),
-		upgrader:            upgrader,
-		replicas:            replicas,
+		log:        log,
+		clientPool: NewChunkServiceClientPool(chunkServiceUrls),
+		channels:   make(map[string]chan common.Event),
+		upgrader:   upgrader,
+		replicas:   replicas,
 	}
 }
 
@@ -68,17 +66,15 @@ func (masterController *MasterController) Save(w http.ResponseWriter, r *http.Re
 			return
 		}
 		wg := sync.WaitGroup{}
-		idx := rand.Intn(len(masterController.chunkServiceClients))
 		for replica := 0; replica < masterController.replicas; replica++ {
 			wg.Add(1)
-			client := masterController.chunkServiceClients[idx]
-			metadata.AddChunk(id, client.Url)
-			if idx >= len(masterController.chunkServiceClients)-1 {
-				idx = 0
-			} else {
-				idx++
+			client, err := masterController.clientPool.GetRandom()
+			if err != nil {
+				http.Error(w, "Chunk service is not found", http.StatusInternalServerError)
+				return
 			}
-			go func(client ChunkServiceClient) {
+			metadata.AddChunk(id, client.Url)
+			go func(client *ChunkServiceClient) {
 				defer wg.Done()
 				client.Save(name, id, buf[:n])
 			}(client)
@@ -87,7 +83,7 @@ func (masterController *MasterController) Save(w http.ResponseWriter, r *http.Re
 		id++
 	}
 	go func() {
-		for _, client := range masterController.chunkServiceClients {
+		for _, client := range masterController.clientPool.GetAll() {
 			err := client.Save(name+METADATA_TAG, 0, metadata.ToByteArray())
 			if err != nil {
 				http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
@@ -107,8 +103,12 @@ func (masterController *MasterController) Load(w http.ResponseWriter, r *http.Re
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	idx := rand.Intn(len(masterController.chunkServiceClients))
-	client := masterController.chunkServiceClients[idx]
+
+	client, err := masterController.clientPool.GetRandom()
+	if err != nil {
+		http.Error(w, "Chunk service is not found", http.StatusInternalServerError)
+		return
+	}
 	metadataBody, err := client.Load(name+METADATA_TAG, 0)
 
 	if err != nil {
@@ -124,8 +124,9 @@ func (masterController *MasterController) Load(w http.ResponseWriter, r *http.Re
 		if !found {
 			break
 		}
+
 		idx := rand.Intn(len(urls))
-		client := NewChunkServiceClient(urls[idx])
+		client, _ := masterController.clientPool.Get(urls[idx])
 		data, err := client.Load(name, id)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -139,7 +140,7 @@ func (masterController *MasterController) List(w http.ResponseWriter, r *http.Re
 	m := make(map[string]struct{})
 	wg := sync.WaitGroup{}
 	lock := sync.Mutex{}
-	for _, client := range masterController.chunkServiceClients {
+	for _, client := range masterController.clientPool.GetAll() {
 		wg.Add(1)
 		go func(client ChunkServiceClient) {
 			res, err := client.List()
@@ -178,8 +179,11 @@ func (masterController *MasterController) Remove(w http.ResponseWriter, r *http.
 		return
 	}
 
-	idx := rand.Intn(len(masterController.chunkServiceClients))
-	client := masterController.chunkServiceClients[idx]
+	client, err := masterController.clientPool.GetRandom()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	metadataBody, err := client.Load(name+METADATA_TAG, 0)
 
 	if err != nil {
@@ -205,7 +209,7 @@ func (masterController *MasterController) Remove(w http.ResponseWriter, r *http.
 		}
 	}
 
-	for _, client := range masterController.chunkServiceClients {
+	for _, client := range masterController.clientPool.GetAll() {
 		err := client.Remove(name+METADATA_TAG, 0)
 		if err != nil {
 			http.Error(w, "Error writing body to chunk service", http.StatusInternalServerError)
